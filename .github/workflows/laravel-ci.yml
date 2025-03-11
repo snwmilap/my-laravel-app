@@ -26,8 +26,17 @@ jobs:
       - name: Run PHP CodeSniffer (PHPCS)
         run: ./vendor/bin/phpcs --standard=PSR12 app/
 
+      # ✅ Auto-fix PHPCS errors
+      - name: Run PHPCBF to Fix PHPCS Errors
+        run: ./vendor/bin/phpcbf --standard=PSR12 app/
+
       - name: Run PHPStan (Static Analysis)
         run: ./vendor/bin/phpstan analyse --level=5 app/
 
-      - name: Run PHP-CS-Fixer (Coding Standards)
-        run: ./vendor/bin/php-cs-fixer fix --dry-run --diff
+      # ✅ Auto-fix PHP code formatting issues
+      - name: Run PHP-CS-Fixer (Fix Formatting)
+        run: ./vendor/bin/php-cs-fixer fix --verbose
+
+      # ✅ Show Git Status (Check for Auto-Fixed Files)
+      - name: Show Git Status
+        run: git status
