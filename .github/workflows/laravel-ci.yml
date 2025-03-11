@@ -5,12 +5,14 @@ on: [push, pull_request]
 jobs:
   code-checks:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 10  # Prevent hung workflows
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get full git history for proper diff checks
 
-      # ✅ Cache Composer Dependencies
       - name: Cache Composer dependencies
         uses: actions/cache@v3
         with:
@@ -18,52 +20,28 @@ jobs:
           key: composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: composer-
 
-      # ✅ Set up PHP
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, bcmath, pdo
           coverage: none
+          tools: cs2pr  # Convert checkstyle to GitHub annotations
 
-      # ✅ Install Composer Dependencies
       - name: Install PHP dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      # ✅ Fetch Git Changes (Required for Diff-Based Checks)
-      - name: Fetch Git History
-        run: git fetch --prune --unshallow
+      # Code Quality Checks
+      - name: PHP Syntax Check
+        run: find . -type f -name '*.php' -not -path './vendor/*' -exec php -l {} \;
 
-      # ✅ Get Changed PHP Files
-      - name: Get Changed PHP Files
-        id: changed_files
-        run: |
-          echo "CHANGED_FILES=$(git diff --name-only origin/main | grep '\.php$' || echo '')" >> $GITHUB_ENV
+      - name: PHP CodeSniffer (PSR12)
+        run: ./vendor/bin/phpcs --standard=PSR12 --colors -p app/
 
-      # ✅ Auto-fix PHPCS Errors with PHPCBF (Only Changed Files)
-      - name: Auto-fix PHPCS Errors
-        if: env.CHANGED_FILES != ''
-        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/phpcbf --standard=PSR12
+      - name: PHPStan Analysis
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G --error-format=github
+        env:
+          PHPSTAN_RESULT_CACHE: /tmp/phpstan
 
-      # ✅ Run PHP Linter (Syntax Check, Only Changed Files)
-      - name: Run PHP Linter (Syntax Check)
-        if: env.CHANGED_FILES != ''
-        run: echo "$CHANGED_FILES" | xargs -r php -l
-
-      # ✅ Run PHP CodeSniffer (PHPCS, Only Changed Files)
-      - name: Run PHP CodeSniffer (PHPCS)
-        if: env.CHANGED_FILES != ''
-        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/phpcs --standard=PSR12
-
-      # ✅ Run PHPStan (Static Analysis)
-      - name: Run PHPStan
-        run: ./vendor/bin/phpstan analyse --level=5 app/
-
-      # ✅ Run PHP-CS-Fixer (Auto-Fix Formatting, Only Changed Files)
-      - name: Run PHP-CS-Fixer
-        if: env.CHANGED_FILES != ''
-        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/php-cs-fixer fix --verbose
-
-      # ✅ Show Git Status (Check for Auto-Fixed Files)
-      - name: Show Git Status
-        run: git status
+      - name: PHP-CS-Fixer Check
+        run: ./vendor/bin/php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php
