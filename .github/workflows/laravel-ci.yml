@@ -54,7 +54,6 @@ jobs:
       - name: Run PHP CodeSniffer (PHPCS)
         if: env.CHANGED_FILES != ''
         run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/phpcs --standard=PSR12
-        continue-on-error: true  # ✅ Prevents stopping on errors
 
       # ✅ Run PHPStan (Static Analysis)
       - name: Run PHPStan
@@ -64,7 +63,6 @@ jobs:
       - name: Run PHP-CS-Fixer
         if: env.CHANGED_FILES != ''
         run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/php-cs-fixer fix --verbose
-        continue-on-error: true  # ✅ Prevents workflow failure
 
       # ✅ Show Git Status (Check for Auto-Fixed Files)
       - name: Show Git Status
