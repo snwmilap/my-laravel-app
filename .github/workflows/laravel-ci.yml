@@ -39,6 +39,11 @@ jobs:
       - name: Run PHPCBF (Auto-correct PHPCS)
         run: ./vendor/bin/phpcbf --standard=PSR12 app/ --report=summary
 
+      - name: PHPStan Analysis
+        run: ./vendor/bin/phpstan analyse --memory-limit=2G --error-format=github
+        env:
+          PHPSTAN_RESULT_CACHE: /tmp/phpstan
+
       # Commit fixes if any
       - name: Commit Automatic Fixes
         id: commit
