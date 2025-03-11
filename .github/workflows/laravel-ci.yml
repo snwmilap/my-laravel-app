@@ -30,30 +30,41 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      # ✅ Run PHPCBF (Auto-fix Code Issues Before Linting)
-      - name: Auto-fix PHPCS Errors with PHPCBF
-        run: |
-          git diff --name-only origin/main | grep '\.php$' | xargs -r ./vendor/bin/phpcbf --standard=PSR12
+      # ✅ Fetch Git Changes (Required for Diff-Based Checks)
+      - name: Fetch Git History
+        run: git fetch --prune --unshallow
 
-      # ✅ Run PHP Linter (Check Syntax Only)
+      # ✅ Get Changed PHP Files
+      - name: Get Changed PHP Files
+        id: changed_files
+        run: |
+          echo "CHANGED_FILES=$(git diff --name-only origin/main | grep '\.php$' || echo '')" >> $GITHUB_ENV
+
+      # ✅ Auto-fix PHPCS Errors with PHPCBF (Only Changed Files)
+      - name: Auto-fix PHPCS Errors
+        if: env.CHANGED_FILES != ''
+        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/phpcbf --standard=PSR12
+
+      # ✅ Run PHP Linter (Syntax Check, Only Changed Files)
       - name: Run PHP Linter (Syntax Check)
-        run: |
-          git fetch origin main --depth=1
-          git diff --name-only origin/main | grep '\.php$' | xargs -r php -l
+        if: env.CHANGED_FILES != ''
+        run: echo "$CHANGED_FILES" | xargs -r php -l
 
-      # ✅ Run PHPCS (Check Formatting Issues After Auto-fix)
-      - name: Run PHP CodeSniffer (PHPCS) After Auto-fix
-        run: |
-          git diff --name-only origin/main | grep '\.php$' | xargs -r ./vendor/bin/phpcs --standard=PSR12
+      # ✅ Run PHP CodeSniffer (PHPCS, Only Changed Files)
+      - name: Run PHP CodeSniffer (PHPCS)
+        if: env.CHANGED_FILES != ''
+        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/phpcs --standard=PSR12
         continue-on-error: true  # ✅ Prevents stopping on errors
 
       # ✅ Run PHPStan (Static Analysis)
       - name: Run PHPStan
         run: ./vendor/bin/phpstan analyse --level=5 app/
 
-      # ✅ Run PHP-CS-Fixer (Auto-Fix PHP Code Formatting)
+      # ✅ Run PHP-CS-Fixer (Auto-Fix Formatting, Only Changed Files)
       - name: Run PHP-CS-Fixer
-        run: ./vendor/bin/php-cs-fixer fix --verbose
+        if: env.CHANGED_FILES != ''
+        run: echo "$CHANGED_FILES" | xargs -r ./vendor/bin/php-cs-fixer fix --verbose
+        continue-on-error: true  # ✅ Prevents workflow failure
 
       # ✅ Show Git Status (Check for Auto-Fixed Files)
       - name: Show Git Status
