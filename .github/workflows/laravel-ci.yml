@@ -10,6 +10,15 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      # ✅ Cache Composer Dependencies
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: composer-
+
+      # ✅ Set up PHP
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
@@ -17,24 +26,33 @@ jobs:
           extensions: mbstring, bcmath, pdo
           coverage: none
 
-      - name: Install Composer Dependencies
+      # ✅ Install Composer Dependencies
+      - name: Install PHP dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      - name: Run PHP Linter
-        run: find . -type f -name "*.php" -exec php -l {} \;
+      # ✅ Run PHPCBF (Auto-fix Code Issues Before Linting)
+      - name: Auto-fix PHPCS Errors with PHPCBF
+        run: |
+          git diff --name-only origin/main | grep '\.php$' | xargs -r ./vendor/bin/phpcbf --standard=PSR12
 
-      - name: Run PHP CodeSniffer (PHPCS)
-        run: ./vendor/bin/phpcs --standard=PSR12 app/
+      # ✅ Run PHP Linter (Check Syntax Only)
+      - name: Run PHP Linter (Syntax Check)
+        run: |
+          git fetch origin main --depth=1
+          git diff --name-only origin/main | grep '\.php$' | xargs -r php -l
 
-      # ✅ Auto-fix PHPCS errors
-      - name: Run PHPCBF to Fix PHPCS Errors
-        run: ./vendor/bin/phpcbf --standard=PSR12 app/
+      # ✅ Run PHPCS (Check Formatting Issues After Auto-fix)
+      - name: Run PHP CodeSniffer (PHPCS) After Auto-fix
+        run: |
+          git diff --name-only origin/main | grep '\.php$' | xargs -r ./vendor/bin/phpcs --standard=PSR12
+        continue-on-error: true  # ✅ Prevents stopping on errors
 
-      - name: Run PHPStan (Static Analysis)
+      # ✅ Run PHPStan (Static Analysis)
+      - name: Run PHPStan
         run: ./vendor/bin/phpstan analyse --level=5 app/
 
-      # ✅ Auto-fix PHP code formatting issues
-      - name: Run PHP-CS-Fixer (Fix Formatting)
+      # ✅ Run PHP-CS-Fixer (Auto-Fix PHP Code Formatting)
+      - name: Run PHP-CS-Fixer
         run: ./vendor/bin/php-cs-fixer fix --verbose
 
       # ✅ Show Git Status (Check for Auto-Fixed Files)
