@@ -1,14 +1,14 @@
 <?php
 
-$finder = PhpCsFixer\Finder::create()
-    ->in(__DIR__)
-    ->exclude('vendor')
-    ->exclude('storage')
-    ->exclude('bootstrap/cache');
-
 return (new PhpCsFixer\Config())
     ->setRules([
         '@PSR12' => true,
         'array_syntax' => ['syntax' => 'short'],
+        'single_import_per_statement' => false,
+        'no_unused_imports' => true,
     ])
-    ->setFinder($finder);
+    ->setFinder(
+        PhpCsFixer\Finder::create()
+            ->in(__DIR__)
+            ->exclude('vendor')
+    );

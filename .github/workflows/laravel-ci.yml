@@ -1,47 +1,65 @@
-name: Laravel Code Quality Checks
+name: Laravel Auto-Fix CI/CD
 
 on: [push, pull_request]
 
 jobs:
-  code-checks:
+  code-fix-and-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10  # Prevent hung workflows
+    timeout-minutes: 10
+    permissions:
+      contents: write  # Required for automatic commits
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get full git history for proper diff checks
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache Composer dependencies
         uses: actions/cache@v3
         with:
           path: vendor
           key: composer-${{ hashFiles('**/composer.lock') }}
-          restore-keys: composer-
 
-      - name: Set up PHP
+      - name: Setup PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           extensions: mbstring, bcmath, pdo
-          coverage: none
-          tools: cs2pr  # Convert checkstyle to GitHub annotations
+          tools: cs2pr, php-cs-fixer, phpcs
 
-      - name: Install PHP dependencies
+      - name: Install Dependencies
         run: composer install --no-progress --no-interaction --prefer-dist
 
-      # Code Quality Checks
-      - name: PHP Syntax Check
-        run: find . -type f -name '*.php' -not -path './vendor/*' -exec php -l {} \;
+      # Auto-fix section
+      - name: Run PHP-CS-Fixer
+        run: ./vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php
 
-      - name: PHP CodeSniffer (PSR12)
-        run: ./vendor/bin/phpcs --standard=PSR12 --colors -p app/
+      - name: Run PHPCBF (Auto-correct PHPCS)
+        run: ./vendor/bin/phpcbf --standard=PSR12 app/ --report=summary
+
+      # Commit fixes if any
+      - name: Commit Automatic Fixes
+        id: commit
+        run: |
+          git config --global user.name "CI Auto Fixer"
+          git config --global user.email "ci-autofix@example.com"
+          git add .
+          if ! git diff --staged --quiet; then
+            git commit -m "🔧 Automated code style fixes"
+            git push origin HEAD:${{ github.ref }}
+            echo "::notice::Auto-commit pushed changes"
+          else
+            echo "::notice::No style fixes needed"
+          fi
+
+      # Final quality checks
+      - name: Validate PHP Syntax
+        run: find . -type f -name '*.php' ! -path './vendor/*' -exec php -l {} \;
+
+      - name: Run PHPCS (Final Check)
+        run: ./vendor/bin/phpcs --standard=PSR12 app/ --colors -p
 
       - name: PHPStan Analysis
         run: ./vendor/bin/phpstan analyse --memory-limit=2G --error-format=github
-        env:
-          PHPSTAN_RESULT_CACHE: /tmp/phpstan
-
-      - name: PHP-CS-Fixer Check
-        run: ./vendor/bin/php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php
